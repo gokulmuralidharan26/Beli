@@ -1,0 +1,59 @@
+# Tuning knobs for what counts as a restaurant visit.  Everything is a
+# case-insensitive substring match.  Edit freely; `beli-sync run --show-excluded`
+# prints what got filtered out and why, so you can check it.
+
+# If the bank gives a category, a transaction is dining only if the category
+# contains one of these.
+dining_categories:
+  - restaurant        # Apple Card "Restaurants", Amex "Restaurant-Restaurant"
+  - dining
+  - food & drink      # Chase
+  - bar & caf         # Amex "Restaurant-Bar & Café"
+
+# Used only when the bank gives NO category: a merchant name containing one of
+# these is treated as dining.  (TST* Toast charges always count.)
+dining_keywords:
+  - restaurant
+  - cafe
+  - café
+  - grill
+  - pizza
+  - bistro
+  - tavern
+  - kitchen
+  - sushi
+  - taqueria
+  - ramen
+  - diner
+  - steakhouse
+  - bbq
+  - brasserie
+  - trattoria
+  - pub
+  - eatery
+  - bakery
+  - noodle
+  - burger
+
+# Never treated as a restaurant visit (groceries, delivery, subscriptions...).
+exclude_merchants:
+  - whole foods
+  - trader joe
+  - kroger
+  - safeway
+  - costco
+  - walmart
+  - target
+  - aldi
+  - publix
+  - instacart
+  - gopuff
+  - dashpass
+  - uber one
+  - subscription
+  - membership
+  - amazon
+  - grubhub+            # Grubhub+ membership
+
+# "Unless I say otherwise": anything matching these bypasses exclude_merchants.
+include_overrides: []
