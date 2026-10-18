@@ -35,15 +35,17 @@ def _cmd_run(args: argparse.Namespace) -> int:
         cfg = FilterConfig.load(ROOT / "config" / "filters.yaml")
         print(f"Reading {len(files)} statement file(s) from {inbox} ...")
         result = build_candidates(source, db, places, cfg, os.environ.get("HOME_LOCATION", ""),
-                                  record_known=not args.dry_run)
+                                  record_known=not args.dry_run, since=args.since, until=args.until)
     except (GooglePlacesError, StatementFormatError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
     s = result.stats
-    print(f"{s['transactions']} transactions: {s['already processed']} already processed, "
-          f"{s['not dining']} not dining, {s['skipped before']} skipped before, "
-          f"{s['visits at known restaurants']} visits at restaurants you already have.")
+    print(f"{s['transactions']} transactions: {s['outside date range']} outside date range, "
+          f"{s['already processed']} already processed, {s['not dining']} not dining by name/category, "
+          f"{s['not dining (place lookup)']} not restaurants per Google, {s['skipped before']} skipped before, "
+          f"{s['visits at known restaurants']} visits at restaurants you already have. "
+          f"({s['merchants looked up']} Google lookups)")
     if args.show_excluded:
         print("\nExcluded (merchant: reason):")
         for (name, reason), n in sorted(Counter(result.excluded).items()):
@@ -82,6 +84,10 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     run = sub.add_parser("run", help="process the inbox and review new restaurants")
     run.add_argument("--inbox", help="folder of statement CSVs (default: ./inbox)")
+    run.add_argument("--from", dest="since", type=date.fromisoformat, metavar="YYYY-MM-DD",
+                     help="ignore transactions before this date")
+    run.add_argument("--to", dest="until", type=date.fromisoformat, metavar="YYYY-MM-DD",
+                     help="ignore transactions after this date")
     run.add_argument("--dry-run", action="store_true", help="show what would be reviewed; save nothing")
     run.add_argument("--show-excluded", action="store_true", help="list filtered-out transactions and why")
     run.set_defaults(func=_cmd_run)

@@ -8,7 +8,7 @@ from datetime import date
 from .db import Database
 from .filtering import FilterConfig, classify
 from .normalize import key_for
-from .places import PlacesClient, Place, rank
+from .places import MEDIUM, Place, PlacesClient, is_dining_place, rank
 from .review import Candidate, Decision, Reviewer
 from .sources.base import TransactionSource
 
@@ -23,13 +23,17 @@ class RunResult:
 
 
 def build_candidates(source: TransactionSource, db: Database, places: PlacesClient, cfg: FilterConfig,
-                     home_location: str = "", result: RunResult | None = None, record_known: bool = True) -> RunResult:
+                     home_location: str = "", result: RunResult | None = None, record_known: bool = True,
+                     since: date | None = None, until: date | None = None) -> RunResult:
     result = result or RunResult()
     stats = result.stats
 
     groups: dict[str, list] = defaultdict(list)  # alias key -> [(txn, decision)]
     for txn in source.fetch():
         stats["transactions"] += 1
+        if (since and txn.date < since) or (until and txn.date > until):
+            stats["outside date range"] += 1
+            continue
         if db.has_visit(txn.key):
             stats["already processed"] += 1
             continue
@@ -57,8 +61,17 @@ def build_candidates(source: TransactionSource, db: Database, places: PlacesClie
             matches = rank(d0.parsed.name, hint, [match_place], via_delivery)
         else:
             query = f"{d0.parsed.name} {hint or home_location}".strip()
+            stats["merchants looked up"] += 1
             matches = rank(d0.parsed.name, hint, places.search(query), via_delivery)
         best = matches[0] if matches else None
+
+        if not alias and d0.needs_place_check and not (
+            best and is_dining_place(best.place) and best.confidence >= MEDIUM
+        ):
+            # Uncategorised charge that Google doesn't confidently place as somewhere you eat.
+            stats["not dining (place lookup)"] += len(items)
+            result.excluded.append((txn0.lookup_text, "place lookup: not a restaurant"))
+            continue
 
         cand = Candidate(
             name=d0.parsed.name, keys={key}, match=best, hint=hint, via_delivery=via_delivery,

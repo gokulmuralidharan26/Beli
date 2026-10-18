@@ -28,6 +28,8 @@ class Decision:
     include: bool
     reason: str  # why it was included/excluded, shown by --show-excluded
     parsed: ParsedMerchant
+    # No bank category and no name clue: only a restaurant if the places lookup says so.
+    needs_place_check: bool = False
 
 
 def _contains_any(text: str, needles: list[str]) -> bool:
@@ -49,6 +51,7 @@ def classify(txn: Transaction, cfg: FilterConfig) -> Decision:
         return no("excluded merchant")
 
     # Bank category wins when present; names are only the fallback.
+    needs_check = False
     if txn.category:
         if not _contains_any(txn.category.lower(), cfg.dining_categories):
             return no(f"category: {txn.category}")
@@ -58,10 +61,10 @@ def classify(txn: Transaction, cfg: FilterConfig) -> Decision:
     elif _contains_any(text, cfg.dining_keywords):
         dining_reason = "name keyword"
     else:
-        return no("no category, no dining keyword")
+        needs_check, dining_reason = True, "no category: decided by place lookup"
 
     if parsed.via_delivery and not parsed.name:
         return no("delivery platform, restaurant unknown")
     if not parsed.name:
         return no("empty merchant name")
-    return Decision(True, dining_reason, parsed)
+    return Decision(True, dining_reason, parsed, needs_place_check=needs_check)

@@ -66,6 +66,15 @@ def name_similarity(query: str, candidate: str) -> float:
     return best
 
 
+_DINING_TYPES = {"restaurant", "cafe", "bar", "pub", "bakery", "coffee_shop", "meal_takeaway",
+                 "ice_cream_shop", "night_club", "bar_and_grill", "food_court"}
+
+
+def is_dining_place(place: Place) -> bool:
+    """Stricter than _is_food: the generic "food" type is on shops and gas stations too."""
+    return any(t in _DINING_TYPES or t.endswith("_restaurant") for t in place.types)
+
+
 def _is_food(place: Place) -> bool:
     return any(t in _FOOD_TYPES or t.endswith("_restaurant") for t in place.types)
 
@@ -115,7 +124,7 @@ class GooglePlacesClient:
         resp = self._http.post(
             self.URL,
             headers={"X-Goog-Api-Key": self._key, "X-Goog-FieldMask": self.FIELDS},
-            json={"textQuery": query, "pageSize": 5},
+            json={"textQuery": query, "pageSize": 5, "languageCode": "en"},
             timeout=15,
         )
         if resp.status_code != 200:

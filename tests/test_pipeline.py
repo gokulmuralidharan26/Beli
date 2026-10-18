@@ -67,7 +67,7 @@ def test_quit_keeps_progress_and_reports_remainder(tmp_path, db, cfg):
 
 def test_low_confidence_defaults_to_skip(tmp_path, db, cfg):
     write(tmp_path, "apple.csv", APPLE.replace("Joe's Pizza", "Cafe 123"))
-    places = FakePlaces({"cafe 123": [SALON]})
+    places = FakePlaces({"cafe": [SALON]})
     result = build_candidates(CsvInboxSource(tmp_path), db, places, cfg)
     assert result.candidates[0].match.level == "low"
     run_review(db, reviewer(places, [""]), result, TODAY)  # Enter on a flagged item = skip

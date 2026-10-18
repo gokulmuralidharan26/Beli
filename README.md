@@ -16,7 +16,8 @@ checklist to bookmark them in Beli.  Supports Apple Card, Amex, and Chase export
 4. Open `output/beli-checklist-<date>.md` and bookmark each place in the Beli app.
 
 Useful flags: `--dry-run` (preview, saves nothing), `--show-excluded` (what the
-filter dropped and why).  `.venv/bin/beli-sync restaurants` lists everything in
+filter dropped and why), `--from 2026-05-01 --to 2026-06-30` (only look at that
+date range; handy for a first run on a big export).  `.venv/bin/beli-sync restaurants` lists everything in
 the database.
 
 ## First-time setup
@@ -32,8 +33,11 @@ the database.
 ## How it decides
 
 - **Dining filter** (`config/filters.yaml`): if the statement has a category it
-  decides (Apple "Restaurants", Amex "Restaurant-…", Chase "Food & Drink");
-  otherwise TST* (Toast) charges and merchants with dining words count.
+  decides (Amex "Restaurant-…", Chase "Food & Drink").  The current Apple Card
+  export has **no category column**, so for those charges TST* (Toast) and dining
+  words count directly, and everything else is looked up on Google and kept only
+  if Google says it's a restaurant/cafe/bar and the match is at least medium
+  confidence (so a lookup is made per unique Apple Card merchant).
   Groceries, subscriptions, refunds/payments and bare DoorDash/Uber Eats charges
   are excluded.  Add `include_overrides` to bypass an exclusion.
   Delivery charges that *do* name a restaurant are kept, flagged, and capped at
@@ -69,9 +73,12 @@ the database.
 
 ## Status / caveats
 
-- Bank CSV layouts are in `sources/banks.py` and were written from the
-  commonly documented headers, not your files.  If a file is "unrecognised", the
-  error prints its header row (no data) so the layout can be added.
+- Bank CSV layouts are in `sources/banks.py`.  Apple Card (current 5-column
+  export), Amex (detailed export) and Chase are verified/handled; an unrecognised
+  file errors with its header row only (no data) so a layout can be added.
+- Amex cuts merchant names at ~20 characters and glues the city on.  The tool
+  uses the `Extended Details` column (read-only, never stored) to complete
+  truncated names where it can; the rest are left to the Google match and review.
 - Not yet built: auto-adding to Beli through the unofficial
   [beli-api](https://github.com/ProjectBarks/beli-api) SDK (reverse-engineered,
   may break, possible ToS issue).  `BELI_REFRESH_TOKEN` in `.env.example` is

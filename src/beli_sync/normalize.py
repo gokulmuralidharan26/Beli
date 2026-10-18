@@ -8,8 +8,11 @@ from .sanitize import REDACTED
 
 # (regex, processor-name).  Payment-processor prefixes carry no restaurant info.
 _PROCESSORS = [
+    (re.compile(r"^APLPAY\s+"), "applepay"),  # Amex marks Apple Pay purchases this way
     (re.compile(r"^TST\s*\*\s*"), "toast"),
     (re.compile(r"^SQ\s*\*\s*"), "square"),
+    (re.compile(r"^SUMUP\s*\*\s*"), "sumup"),
+    (re.compile(r"^ZETTLE_?\s*\*\s*"), "zettle"),
     (re.compile(r"^PY\s*\*\s*"), "paypal"),
     (re.compile(r"^PAYPAL\s*\*\s*"), "paypal"),
 ]
@@ -23,6 +26,11 @@ _DELIVERY = [
     (re.compile(r"^POSTMATES\s*\*?\s*"), "postmates"),
     (re.compile(r"^SEAMLESS\s*\*?\s*"), "seamless"),
     (re.compile(r"^CAVIAR\s*\*?\s*"), "caviar"),
+    (re.compile(r"^HELP\.UBER(\.COM)?\s*"), "ubereats"),
+    (re.compile(r"^WOLT\s*\*?\s*"), "wolt"),
+    (re.compile(r"^DELIVEROO\s*\*?\s*"), "deliveroo"),
+    (re.compile(r"^GLOVO\s*\*?\s*"), "glovo"),
+    (re.compile(r"^FOODORA\s*\*?\s*"), "foodora"),
 ]
 # What's left after a delivery prefix when there's no real restaurant name.
 _GENERIC_DELIVERY = {"", "dashpass", "eats", "uber", "order", "delivery", "fee", "tip", "help", "pending", "help.uber.com"}
@@ -32,7 +40,8 @@ _STATES = set(
     "OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split()
 )
 
-_STORE_NO = re.compile(r"#\s*\d+")
+_WALLET = re.compile(r"^APLPAY\s+")
+_STORE_NO = re.compile(r"#\s*\d*")
 _PHONE = re.compile(r"\b\d{3}[-. ]?\d{3}[-. ]?\d{4}\b")
 _URL = re.compile(r"\b(?:HTTPS?://)?(?:WWW\.)?|\.(?:COM|NET|ORG|CO)\b")
 
@@ -53,14 +62,20 @@ def parse_merchant(text: str) -> ParsedMerchant:
     s = " ".join(text.upper().split()).replace(REDACTED, "")
     processor = delivery = None
 
+    s = _WALLET.sub("", s)  # "APLPAY GRUBHUB*JOES": the wallet marker can precede anything
     for pattern, name in _DELIVERY:
         if pattern.match(s):
             delivery, s = name, pattern.sub("", s, count=1)
             break
-    for pattern, name in _PROCESSORS:  # processor prefix may follow a delivery one
-        if pattern.match(s):
-            processor, s = name, pattern.sub("", s, count=1)
-            break
+    changed = True
+    while changed:  # prefixes stack: "APLPAY TST* JOES" (wallet, then processor)
+        changed = False
+        for pattern, name in _PROCESSORS:
+            if pattern.match(s):
+                if name != "applepay":
+                    processor = processor or name
+                s, changed = pattern.sub("", s, count=1), True
+                break
 
     s = _URL.sub("", s)
     s = _STORE_NO.sub(" ", s)
@@ -69,10 +84,10 @@ def parse_merchant(text: str) -> ParsedMerchant:
     tokens = s.split()
     if len(tokens) > 1 and tokens[-1] in _STATES:  # trailing state code
         tokens.pop()
-    if len(tokens) > 2 and tokens[-1].isdigit():  # bare store number: "SHAKE SHACK 12"
-        tokens.pop()  # (kept when it would leave one word: "CAFE 123")
+    if len(tokens) > 1 and tokens[-1].isdigit():  # bare store number: "CHIPOTLE 2644"
+        tokens.pop()
     s = " ".join(tokens)
-    s = s.strip(" -*.,/")
+    s = re.sub(r"\s+[&-]$", "", s).strip(" -*.,/")
 
     if delivery and s.lower() in _GENERIC_DELIVERY:
         s = ""

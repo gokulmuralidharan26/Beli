@@ -18,7 +18,9 @@ def test_category_decides_when_present(cfg):
 def test_fallback_to_name_without_category(cfg):
     assert classify(txn("TST* JOES"), cfg).include  # Toast
     assert classify(txn("BLUE DOOR CAFE"), cfg).include  # keyword
-    assert classify(txn("ACME HARDWARE"), cfg).include is False
+    d = classify(txn("ACME HARDWARE"), cfg)  # no clue either way: Google decides
+    assert d.include and d.needs_place_check
+    assert classify(txn("BLUE DOOR CAFE"), cfg).needs_place_check is False
 
 
 def test_exclusions(cfg):
